@@ -256,7 +256,7 @@ export function ConfirmationScreen({ route, navigation }: Props) {
       setIdentification(idResult);
       setCardName(idResult.card_name);
       setSetName(idResult.set_name);
-      setYear(idResult.year.toString());
+      setYear(idResult.year?.toString() ?? '');
       setCardNumber(idResult.card_number);
       setEdition(idResult.edition);
       setRarity(idResult.rarity);

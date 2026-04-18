@@ -7,12 +7,22 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+const JSONB_FIELDS = new Set([
+  'ai_identification_raw', 'value_source_breakdown', 'proof_links',
+  'sample_listings', 'raw_response', 'top_10_cards',
+]);
+
+const TEXT_ARRAY_FIELDS = new Set(['tags']);
+
 function serializeValues(obj) {
   return Object.fromEntries(
-    Object.entries(obj).map(([k, v]) => [
-      k,
-      v !== null && typeof v === 'object' ? JSON.stringify(v) : v,
-    ]),
+    Object.entries(obj).map(([k, v]) => {
+      if (JSONB_FIELDS.has(k) && v !== null && typeof v === 'object')
+        return [k, JSON.stringify(v)];
+      if (TEXT_ARRAY_FIELDS.has(k) && Array.isArray(v))
+        return [k, v.length === 0 ? '{}' : `{${v.map(s => `"${s}"`).join(',')}}`];
+      return [k, v];
+    }),
   );
 }
 
@@ -51,7 +61,8 @@ app.get('/api/cards', async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message || err.detail || err.toString() });
   }
 });
 
@@ -66,7 +77,8 @@ app.get('/api/cards/search', async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message || err.detail || err.toString() });
   }
 });
 
@@ -76,7 +88,8 @@ app.get('/api/cards/:id', async (req, res) => {
     if (!rows[0]) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message || err.detail || err.toString() });
   }
 });
 
@@ -85,23 +98,28 @@ app.post('/api/cards', async (req, res) => {
     const card = serializeValues(req.body);
     const keys = Object.keys(card);
     const values = Object.values(card);
-    const placeholders = keys.map((_, idx) => `$${idx + 1}`);
+    const placeholders = keys.map((k, idx) =>
+      TEXT_ARRAY_FIELDS.has(k) ? `$${idx + 1}::text[]` : `$${idx + 1}`,
+    );
     const { rows } = await pool.query(
       `INSERT INTO cards (${keys.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`,
       values,
     );
     res.status(201).json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message || err.detail || err.toString() });
   }
 });
 
 app.put('/api/cards/:id', async (req, res) => {
   try {
-    const updates = req.body;
+    const updates = serializeValues(req.body);
     const keys = Object.keys(updates);
     const values = Object.values(updates);
-    const setClause = keys.map((k, idx) => `${k} = $${idx + 1}`).join(', ');
+    const setClause = keys.map((k, idx) =>
+      TEXT_ARRAY_FIELDS.has(k) ? `${k} = $${idx + 1}::text[]` : `${k} = $${idx + 1}`,
+    ).join(', ');
     const { rows } = await pool.query(
       `UPDATE cards SET ${setClause} WHERE id = $${keys.length + 1} RETURNING *`,
       [...values, req.params.id],
@@ -109,7 +127,8 @@ app.put('/api/cards/:id', async (req, res) => {
     if (!rows[0]) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message || err.detail || err.toString() });
   }
 });
 
@@ -118,7 +137,8 @@ app.delete('/api/cards/:id', async (req, res) => {
     await pool.query('DELETE FROM cards WHERE id = $1', [req.params.id]);
     res.status(204).send();
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message || err.detail || err.toString() });
   }
 });
 
@@ -127,7 +147,8 @@ app.delete('/api/cards', async (req, res) => {
     await pool.query('DELETE FROM cards');
     res.status(204).send();
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message || err.detail || err.toString() });
   }
 });
 
@@ -145,7 +166,8 @@ app.post('/api/price-checks', async (req, res) => {
     );
     res.status(201).json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message || err.detail || err.toString() });
   }
 });
 
@@ -158,7 +180,8 @@ app.get('/api/price-checks', async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message || err.detail || err.toString() });
   }
 });
 
@@ -171,7 +194,8 @@ app.get('/api/price-checks/latest', async (req, res) => {
     );
     res.json(rows[0] ?? null);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message || err.detail || err.toString() });
   }
 });
 
@@ -189,7 +213,8 @@ app.post('/api/snapshots', async (req, res) => {
     );
     res.status(201).json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message || err.detail || err.toString() });
   }
 });
 
@@ -204,7 +229,8 @@ app.get('/api/snapshots', async (req, res) => {
     const { rows } = await pool.query(query, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message || err.detail || err.toString() });
   }
 });
 
@@ -218,7 +244,8 @@ app.get('/api/snapshots/latest', async (req, res) => {
     const { rows } = await pool.query(query, params);
     res.json(rows[0] ?? null);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message || err.detail || err.toString() });
   }
 });
 

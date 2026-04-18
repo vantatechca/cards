@@ -113,7 +113,9 @@ export async function createCard(card: Partial<Card>): Promise<Card> {
     mockCards.unshift(newCard);
     return newCard;
   }
-  return apiFetch<Card>('/api/cards', { method: 'POST', body: JSON.stringify(card) });
+  const payload = { ...card };
+  if (Array.isArray(payload.tags) && payload.tags.length === 0) delete payload.tags;
+  return apiFetch<Card>('/api/cards', { method: 'POST', body: JSON.stringify(payload) });
 }
 
 export async function updateCard(id: string, updates: Partial<Card>): Promise<Card> {

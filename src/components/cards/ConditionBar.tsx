@@ -15,7 +15,7 @@ function getBarColor(score: number): string {
 }
 
 export function ConditionBar({ psaEstimate, showLabel = true }: Props) {
-  const score = psaEstimate ?? 0;
+  const score = typeof psaEstimate === 'number' ? psaEstimate : 0;
   const pct = (score / 10) * 100;
   const color = getBarColor(score);
 

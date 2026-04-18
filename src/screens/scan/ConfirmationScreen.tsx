@@ -363,9 +363,7 @@ export function ConfirmationScreen({ route, navigation }: Props) {
         photo_url_back: backUri ?? null,
         ai_identification_raw:
           identification as unknown as Record<string, unknown>,
-        ai_confidence_identification: Math.round(
-          identification.identification_confidence * 100,
-        ),
+        ai_confidence_identification: identification.identification_confidence,
         condition_psa_estimate: grading?.psa_estimate ?? null,
         condition_simple: grading?.simple_grade ?? null,
         condition_notes: grading?.condition_notes ?? null,

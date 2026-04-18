@@ -10,21 +10,43 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#1e3a5f"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cardvault.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "CardVault needs camera access to scan and identify your trading cards.",
+        "NSPhotoLibraryUsageDescription": "CardVault needs photo library access to import card images.",
+        "NSFaceIDUsageDescription": "CardVault uses Face ID to protect your collection."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#1e3a5f"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.cardvault.app",
+      "permissions": [
+        "CAMERA"
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "CardVault needs camera access to scan your trading cards."
+        }
+      ],
+      "expo-font",
+      "expo-secure-store",
+      "expo-router"
+    ]
   }
 }

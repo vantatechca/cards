@@ -2,7 +2,7 @@ export const API_CONFIG = {
   apiBaseUrl: process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000',
   claude: {
     apiKey: process.env.EXPO_PUBLIC_CLAUDE_API_KEY || '',
-    model: 'claude-sonnet-4-5-20250514',
+    model: 'claude-sonnet-4-6',
   },
   ebay: {
     appId: process.env.EXPO_PUBLIC_EBAY_APP_ID || '',

@@ -7,6 +7,15 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+function serializeValues(obj) {
+  return Object.fromEntries(
+    Object.entries(obj).map(([k, v]) => [
+      k,
+      v !== null && typeof v === 'object' ? JSON.stringify(v) : v,
+    ]),
+  );
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
@@ -73,7 +82,7 @@ app.get('/api/cards/:id', async (req, res) => {
 
 app.post('/api/cards', async (req, res) => {
   try {
-    const card = req.body;
+    const card = serializeValues(req.body);
     const keys = Object.keys(card);
     const values = Object.values(card);
     const placeholders = keys.map((_, idx) => `$${idx + 1}`);
@@ -126,7 +135,7 @@ app.delete('/api/cards', async (req, res) => {
 
 app.post('/api/price-checks', async (req, res) => {
   try {
-    const pc = req.body;
+    const pc = serializeValues(req.body);
     const keys = Object.keys(pc);
     const values = Object.values(pc);
     const placeholders = keys.map((_, idx) => `$${idx + 1}`);
@@ -170,7 +179,7 @@ app.get('/api/price-checks/latest', async (req, res) => {
 
 app.post('/api/snapshots', async (req, res) => {
   try {
-    const snap = req.body;
+    const snap = serializeValues(req.body);
     const keys = Object.keys(snap);
     const values = Object.values(snap);
     const placeholders = keys.map((_, idx) => `$${idx + 1}`);

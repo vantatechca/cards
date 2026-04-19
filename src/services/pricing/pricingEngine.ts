@@ -12,6 +12,7 @@ import { searchCardMarket } from './cardmarketService';
 import { searchScryfall } from './scryfallService';
 import { searchYGOProDeck } from './ygoprodeckService';
 import { searchTcgApi } from './tcgApiService';
+import { searchTcgPriceLookup } from './tcgPriceLookupService';
 import { calculateConfidence } from './confidenceCalculator';
 import { getUsdToCadRate } from '../currency/currencyService';
 import { createPriceCheck } from '../supabase/priceCheckRepository';
@@ -176,7 +177,7 @@ export async function priceCard(card: CardInput): Promise<PricingResult> {
   const isYugioh = card.collection_type === 'yugioh';
 
   // 3. Fire all applicable sources in parallel
-  const [ebayResult, tcgResult, cmResult, scryfallResult, ygoResult, tcgApiResult] =
+  const [ebayResult, tcgResult, cmResult, scryfallResult, ygoResult, tcgApiResult, tcgPriceLookupResult] =
     await Promise.allSettled([
       searchEbaySold(ebayQuery, conditionFilter),
       skipTcgPlayer
@@ -192,6 +193,9 @@ export async function priceCard(card: CardInput): Promise<PricingResult> {
       (isMagic || isYugioh)
         ? searchTcgApi(card.card_name, isMagic ? 'magic' : 'yugioh', card.set_name)
         : Promise.reject('TCG API only for MTG and Yu-Gi-Oh'),
+      (isMagic || isYugioh)
+        ? searchTcgPriceLookup(card.card_name, isMagic ? 'magic' : 'yugioh')
+        : Promise.reject('TCG Price Lookup only for MTG and Yu-Gi-Oh'),
     ]);
 
   // 4. Extract successful results
@@ -207,8 +211,10 @@ export async function priceCard(card: CardInput): Promise<PricingResult> {
     ygoResult.status === 'fulfilled' ? ygoResult.value : null;
   const tcgApi: PricingSourceResult | null =
     tcgApiResult.status === 'fulfilled' ? tcgApiResult.value : null;
+  const tcgPriceLookup: PricingSourceResult | null =
+    tcgPriceLookupResult.status === 'fulfilled' ? tcgPriceLookupResult.value : null;
 
-  const allSources: PricingSourceResult[] = [ebay, tcg, cm, scryfall, ygo, tcgApi].filter(
+  const allSources: PricingSourceResult[] = [ebay, tcg, cm, scryfall, ygo, tcgApi, tcgPriceLookup].filter(
     (s): s is PricingSourceResult => s != null,
   );
 

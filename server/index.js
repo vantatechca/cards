@@ -12,7 +12,7 @@ cloudinary.config({
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 const JSONB_FIELDS = new Set([
   'ai_identification_raw', 'value_source_breakdown', 'proof_links',
@@ -114,6 +114,29 @@ app.get('/api/ebay/search', async (req, res) => {
   }
 });
 
+// ─── TCG Price Lookup Proxy ───────────────────────────────────────────────────
+
+app.get('/api/tcgpricelookup/search', async (req, res) => {
+  try {
+    const params = new URLSearchParams(req.query);
+    const response = await fetch(`https://tcgpricelookup.com/api/cards/search?${params}`, {
+      headers: {
+        'Authorization': `Bearer ${process.env.TCGPRICELOOKUP_KEY}`,
+        'Accept': 'application/json',
+      },
+    });
+    const text = await response.text();
+    if (text.trim().startsWith('<')) {
+      console.error('TCG Price Lookup returned HTML — check API key/endpoint');
+      return res.status(502).json({ error: 'Invalid response from TCG Price Lookup' });
+    }
+    res.status(response.status).json(JSON.parse(text));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── TCG API Proxy ────────────────────────────────────────────────────────────
 
 app.get('/api/tcgapi/search', async (req, res) => {
@@ -122,8 +145,12 @@ app.get('/api/tcgapi/search', async (req, res) => {
     const response = await fetch(`https://api.tcgapi.dev/v1/search?${params}`, {
       headers: { 'X-API-Key': process.env.TCGAPI_KEY },
     });
-    const data = await response.json();
-    res.status(response.status).json(data);
+    const text = await response.text();
+    if (text.trim().startsWith('<')) {
+      console.error('TCG API returned HTML — check API key/endpoint');
+      return res.status(502).json({ error: 'Invalid response from TCG API' });
+    }
+    res.status(response.status).json(JSON.parse(text));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });

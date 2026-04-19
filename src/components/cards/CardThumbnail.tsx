@@ -5,7 +5,7 @@ import { formatUsd } from '../../utils/formatters';
 import { ConfidenceBadge } from './ConfidenceBadge';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const CARD_WIDTH = (SCREEN_WIDTH - 48) / 3; // 3 columns with padding
+const CARD_WIDTH = (SCREEN_WIDTH - 32 - 16) / 3; // 16px side padding + 8px gaps
 const CARD_HEIGHT = CARD_WIDTH * 1.4;
 
 interface Props {
@@ -49,9 +49,14 @@ export function CardThumbnail({ card, onPress, onLongPress, isSelected }: Props)
         <Text style={styles.name} numberOfLines={1}>
           {card.card_name}
         </Text>
-        <Text style={[styles.price, stale && styles.priceStale]}>
-          {formatUsd(card.estimated_value_usd)}
-        </Text>
+        <View style={styles.priceRow}>
+          <Text style={[styles.price, stale && styles.priceStale]}>
+            {formatUsd(card.estimated_value_usd)}
+          </Text>
+          {card.value_confidence_pct != null && (
+            <ConfidenceBadge confidence={card.value_confidence_pct} size="small" />
+          )}
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -60,15 +65,15 @@ export function CardThumbnail({ card, onPress, onLongPress, isSelected }: Props)
 const styles = StyleSheet.create({
   container: {
     width: CARD_WIDTH,
-    marginBottom: 12,
-    borderRadius: 8,
+    marginBottom: 10,
+    borderRadius: 10,
     overflow: 'hidden',
     backgroundColor: '#fff',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
   },
   selected: {
     borderWidth: 2,
@@ -106,6 +111,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#059669',
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginTop: 2,
   },
   priceStale: {

@@ -98,15 +98,7 @@ async function searchEbayReal(
     limit: '50',
   });
 
-  const url = `${API_CONFIG.ebay.baseUrl}/buy/browse/v1/item_summary/search?${params}`;
-
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${API_CONFIG.ebay.appId}`,
-      'Content-Type': 'application/json',
-      'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
-    },
-  });
+  const res = await fetch(`${API_CONFIG.apiBaseUrl}/api/ebay/search?${params}`);
 
   if (!res.ok) {
     return {

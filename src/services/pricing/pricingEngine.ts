@@ -9,6 +9,9 @@ import {
 import { searchEbaySold } from './ebayService';
 import { searchTcgPlayer } from './tcgplayerService';
 import { searchCardMarket } from './cardmarketService';
+import { searchScryfall } from './scryfallService';
+import { searchYGOProDeck } from './ygoprodeckService';
+import { searchTcgApi } from './tcgApiService';
 import { calculateConfidence } from './confidenceCalculator';
 import { getUsdToCadRate } from '../currency/currencyService';
 import { createPriceCheck } from '../supabase/priceCheckRepository';
@@ -124,6 +127,8 @@ function computeWeightedValue(breakdown: {
   ebay?: { median: number; count: number };
   tcgplayer?: { market: number };
   cardmarket?: { trend: number };
+  scryfall?: { market: number };
+  ygoprodeck?: { market: number };
 }): number | null {
   // Weights: eBay 50%, TCGPlayer 30%, Cardmarket 20%
   // If a source is missing, redistribute proportionally.
@@ -137,6 +142,12 @@ function computeWeightedValue(breakdown: {
   }
   if (breakdown.cardmarket) {
     entries.push({ value: breakdown.cardmarket.trend, weight: 20 });
+  }
+  if (breakdown.scryfall) {
+    entries.push({ value: breakdown.scryfall.market, weight: 40 });
+  }
+  if (breakdown.ygoprodeck) {
+    entries.push({ value: breakdown.ygoprodeck.market, weight: 40 });
   }
 
   if (entries.length === 0) return null;
@@ -161,34 +172,27 @@ export async function priceCard(card: CardInput): Promise<PricingResult> {
 
   // 2. Determine which sources to query
   const skipTcgPlayer = card.collection_type === 'hockey';
+  const isMagic = card.collection_type === 'magic';
+  const isYugioh = card.collection_type === 'yugioh';
 
   // 3. Fire all applicable sources in parallel
-  const promises: [
-    Promise<PromiseSettledResult<PricingSourceResult>>,
-    Promise<PromiseSettledResult<PricingSourceResult>>,
-    Promise<PromiseSettledResult<PricingSourceResult>>,
-  ] = [
-    Promise.allSettled([searchEbaySold(ebayQuery, conditionFilter)]).then(
-      (r) => r[0],
-    ),
-    skipTcgPlayer
-      ? Promise.resolve({
-          status: 'rejected' as const,
-          reason: 'TCGPlayer not applicable for hockey',
-        })
-      : Promise.allSettled([
-          searchTcgPlayer(card.card_name, card.set_name ?? undefined, card.edition ?? undefined),
-        ]).then((r) => r[0]),
-    Promise.allSettled([
+  const [ebayResult, tcgResult, cmResult, scryfallResult, ygoResult, tcgApiResult] =
+    await Promise.allSettled([
+      searchEbaySold(ebayQuery, conditionFilter),
+      skipTcgPlayer
+        ? Promise.reject('TCGPlayer not applicable for hockey')
+        : searchTcgPlayer(card.card_name, card.set_name ?? undefined, card.edition ?? undefined),
       searchCardMarket(card.card_name, card.set_name ?? undefined),
-    ]).then((r) => r[0]),
-  ];
-
-  const [ebayResult, tcgResult, cmResult] = await Promise.all(promises).catch(() => [
-    { status: 'rejected' as const, reason: 'fetch failed' },
-    { status: 'rejected' as const, reason: 'fetch failed' },
-    { status: 'rejected' as const, reason: 'fetch failed' },
-  ]);
+      isMagic
+        ? searchScryfall(card.card_name, card.set_name)
+        : Promise.reject('Scryfall only for MTG'),
+      isYugioh
+        ? searchYGOProDeck(card.card_name)
+        : Promise.reject('YGOPRODeck only for Yu-Gi-Oh'),
+      (isMagic || isYugioh)
+        ? searchTcgApi(card.card_name, isMagic ? 'magic' : 'yugioh', card.set_name)
+        : Promise.reject('TCG API only for MTG and Yu-Gi-Oh'),
+    ]);
 
   // 4. Extract successful results
   const ebay: PricingSourceResult | null =
@@ -197,8 +201,14 @@ export async function priceCard(card: CardInput): Promise<PricingResult> {
     tcgResult.status === 'fulfilled' ? tcgResult.value : null;
   const cm: PricingSourceResult | null =
     cmResult.status === 'fulfilled' ? cmResult.value : null;
+  const scryfall: PricingSourceResult | null =
+    scryfallResult.status === 'fulfilled' ? scryfallResult.value : null;
+  const ygo: PricingSourceResult | null =
+    ygoResult.status === 'fulfilled' ? ygoResult.value : null;
+  const tcgApi: PricingSourceResult | null =
+    tcgApiResult.status === 'fulfilled' ? tcgApiResult.value : null;
 
-  const allSources: PricingSourceResult[] = [ebay, tcg, cm].filter(
+  const allSources: PricingSourceResult[] = [ebay, tcg, cm, scryfall, ygo, tcgApi].filter(
     (s): s is PricingSourceResult => s != null,
   );
 
@@ -206,16 +216,19 @@ export async function priceCard(card: CardInput): Promise<PricingResult> {
   const breakdown: PricingResult['breakdown'] = {};
 
   if (ebay && ebay.medianPrice != null) {
-    breakdown.ebay = {
-      median: ebay.medianPrice,
-      count: ebay.resultsFound,
-    };
+    breakdown.ebay = { median: ebay.medianPrice, count: ebay.resultsFound };
   }
   if (tcg && tcg.medianPrice != null) {
     breakdown.tcgplayer = { market: tcg.medianPrice };
   }
   if (cm && cm.medianPrice != null) {
     breakdown.cardmarket = { trend: cm.medianPrice };
+  }
+  if (scryfall && scryfall.medianPrice != null) {
+    breakdown.scryfall = { market: scryfall.medianPrice };
+  }
+  if (ygo && ygo.medianPrice != null) {
+    breakdown.ygoprodeck = { market: ygo.medianPrice };
   }
 
   // 6. Compute weighted estimated value

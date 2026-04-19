@@ -17,7 +17,7 @@ import { formatUsd, formatCad } from '../../utils/formatters';
 type Props = NativeStackScreenProps<CollectionStackParamList, 'CollectionGrid'>;
 
 function CollectionSummary({ cards }: { cards: Card[] }) {
-  const totalUsd = cards.reduce((s, c) => s + (c.estimated_value_usd ?? 0), 0);
+  const totalUsd = cards.reduce((s, c) => s + (Number(c.estimated_value_usd) || 0), 0);
   const totalCad = Math.round(totalUsd * 1.36 * 100) / 100;
   const confidences = cards.map((c) => c.value_confidence_pct).filter((v): v is number => v != null);
   const avgConf = confidences.length > 0 ? Math.round(confidences.reduce((a, b) => a + b, 0) / confidences.length) : 0;
@@ -216,6 +216,7 @@ export function CollectionGridScreen({ navigation }: Props) {
           renderItem={renderCard}
           numColumns={3}
           contentContainerStyle={styles.grid}
+          columnWrapperStyle={styles.row}
           keyExtractor={(item) => item.id}
           extraData={selectedCardIds}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563eb" />}
@@ -259,5 +260,6 @@ const styles = StyleSheet.create({
   summaryValue: { fontSize: 16, fontWeight: '700', color: '#111827' },
   summaryLabel: { fontSize: 11, color: '#6b7280', marginTop: 2 },
   toolbar: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingVertical: 8 },
-  grid: { paddingHorizontal: 12, paddingTop: 4 },
+  grid: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 },
+  row: { gap: 8 },
 });

@@ -25,6 +25,8 @@ export interface PricingResult {
     ebay?: { median: number; count: number };
     tcgplayer?: { market: number };
     cardmarket?: { trend: number };
+    scryfall?: { market: number };
+    ygoprodeck?: { market: number };
   };
 }
 

@@ -4,7 +4,7 @@ export type ConditionSimple = 'Mint' | 'Near Mint' | 'Excellent' | 'Good' | 'Fai
 
 export type Recommendation = 'sell_now' | 'hold' | 'buy_more' | 'watch';
 
-export type PriceSource = 'ebay_sold' | 'tcgplayer' | 'cardmarket' | 'scrape' | 'manual';
+export type PriceSource = 'ebay_sold' | 'tcgplayer' | 'cardmarket' | 'scrape' | 'manual' | 'scryfall' | 'ygoprodeck';
 
 export interface SoldListing {
   title: string;

@@ -62,6 +62,74 @@ app.post('/api/ai/claude', async (req, res) => {
   }
 });
 
+// ─── eBay Proxy ───────────────────────────────────────────────────────────────
+
+app.get('/api/ebay/search', async (req, res) => {
+  try {
+    const appId = process.env.EBAY_APP_ID;
+    const certId = process.env.EBAY_CERT_ID;
+
+    if (!appId || !certId) {
+      return res.status(503).json({ error: 'eBay credentials not configured' });
+    }
+
+    const isSandbox = process.env.EBAY_SANDBOX === 'true';
+    const ebayBase = isSandbox ? 'https://api.sandbox.ebay.com' : 'https://api.ebay.com';
+
+    // Get OAuth token
+    const tokenRes = await fetch(`${ebayBase}/identity/v1/oauth2/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${Buffer.from(`${appId}:${certId}`).toString('base64')}`,
+      },
+      body: 'grant_type=client_credentials&scope=https%3A%2F%2Fapi.ebay.com%2Foauth%2Fapi_scope',
+    });
+
+    if (!tokenRes.ok) {
+      const errText = await tokenRes.text();
+      console.error('eBay token error:', errText);
+      return res.status(502).json({ error: 'eBay auth failed' });
+    }
+
+    const { access_token } = await tokenRes.json();
+
+    // Search eBay
+    const params = new URLSearchParams(req.query);
+    const searchRes = await fetch(
+      `${ebayBase}/buy/browse/v1/item_summary/search?${params}`,
+      {
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+        },
+      },
+    );
+
+    const data = await searchRes.json();
+    res.status(searchRes.status).json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── TCG API Proxy ────────────────────────────────────────────────────────────
+
+app.get('/api/tcgapi/search', async (req, res) => {
+  try {
+    const params = new URLSearchParams(req.query);
+    const response = await fetch(`https://api.tcgapi.dev/v1/search?${params}`, {
+      headers: { 'X-API-Key': process.env.TCGAPI_KEY },
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Image Upload ─────────────────────────────────────────────────────────────
 
 app.post('/api/upload', async (req, res) => {

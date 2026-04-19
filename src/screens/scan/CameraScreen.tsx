@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
 import { CameraView } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -66,6 +66,10 @@ export function CameraScreen({ navigation }: Props) {
   };
 
   const handleCapture = async () => {
+    if (Platform.OS === 'web') {
+      await handlePickFromGallery();
+      return;
+    }
     const rawUri = await takePicture();
     if (!rawUri) return;
 

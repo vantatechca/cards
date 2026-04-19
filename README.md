@@ -2,16 +2,22 @@
 
 A React Native (Expo) mobile app for tracking and valuing trading card collections — hockey, Magic: The Gathering, and Yu-Gi-Oh. Scan cards with your camera, get AI-powered identification and condition grading, and track your collection's value over time.
 
+## Live Demo
+
+- **Frontend:** https://cards-1-vl8n.onrender.com
+- **Backend API:** https://cards-0rs7.onrender.com
+
 ## Features
 
-- **Camera Scanning** — Point your camera at a card; Claude AI identifies it and estimates condition
+- **Camera Scanning** — Point your camera at a card or upload a photo; Claude AI identifies it and estimates condition
+- **AI Identification & Grading** — Claude API identifies card name, set, year, rarity and grades condition (PSA estimate)
+- **Multi-Source Pricing** — Pulls data from eBay sold listings, TCG API, Scryfall, and YGOPRODeck for accurate valuation
+- **AI Recommendations** — Buy / sell / hold / watch signals per card with reasoning
 - **Collection Management** — Browse, filter, and sort your cards in a grid view
-- **Price Intelligence** — Pulls sold listings from eBay, TCGPlayer, and CardMarket
-- **AI Recommendations** — Buy / sell / hold / watch signals per card
+- **Card Image Storage** — Card photos uploaded and stored via Cloudinary
 - **Dashboard** — Portfolio value charts and collection breakdowns
 - **Search** — Full-text search across your entire collection
 - **Offline Support** — Queue changes locally and sync when back online
-- **Biometric Lock** — Optional Face ID / fingerprint protection
 
 ## Tech Stack
 
@@ -19,17 +25,29 @@ A React Native (Expo) mobile app for tracking and valuing trading card collectio
 |---|---|
 | Framework | Expo SDK 54 / React Native 0.81 |
 | Navigation | Expo Router + React Navigation |
-| Backend | Supabase (Postgres + Storage) |
+| Database | Neon (PostgreSQL) |
+| Backend API | Node.js / Express (deployed on Render) |
+| Image Storage | Cloudinary |
 | State | Zustand + TanStack Query |
 | AI | Claude API (card ID, grading, recommendations) |
-| Pricing | eBay, TCGPlayer, CardMarket APIs |
+| Pricing | eBay, TCG API, Scryfall, YGOPRODeck |
+
+## Pricing Sources
+
+| Source | Card Types | Data |
+|---|---|---|
+| eBay Production API | Hockey, MTG, Yu-Gi-Oh | Real sold listings |
+| TCG API (tcgapi.dev) | MTG, Yu-Gi-Oh | Market prices |
+| Scryfall | MTG only | Market prices (free) |
+| YGOPRODeck | Yu-Gi-Oh only | TCGPlayer + eBay + Amazon prices (free) |
 
 ## Prerequisites
 
 - Node.js 18+
 - [Expo CLI](https://docs.expo.dev/get-started/installation/) — `npm install -g expo-cli`
 - Expo Go app on your phone (for quick testing), or Android/iOS simulator
-- A [Supabase](https://supabase.com) project
+- A [Neon](https://neon.tech) database
+- A [Cloudinary](https://cloudinary.com) account
 - API keys (see Environment Variables below)
 
 ## Setup
@@ -37,10 +55,15 @@ A React Native (Expo) mobile app for tracking and valuing trading card collectio
 ### 1. Install dependencies
 
 ```bash
+# Frontend
+npm install
+
+# Backend
+cd server
 npm install
 ```
 
-### 2. Configure environment variables
+### 2. Configure frontend environment variables
 
 ```bash
 cp .env.example .env
@@ -49,74 +72,100 @@ cp .env.example .env
 Fill in your `.env`:
 
 ```env
-EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-
-EXPO_PUBLIC_CLAUDE_API_KEY=sk-ant-your-key        # Card identification & grading
-EXPO_PUBLIC_EBAY_APP_ID=your-ebay-app-id          # Sold listings pricing
-EXPO_PUBLIC_TCGPLAYER_API_KEY=your-key            # MTG / Yu-Gi-Oh pricing
-EXPO_PUBLIC_CARDMARKET_APP_TOKEN=your-token       # European market pricing
-
-EXPO_PUBLIC_USE_MOCKS=true   # Set to false to use real APIs
+EXPO_PUBLIC_API_URL=http://localhost:3000
+EXPO_PUBLIC_USE_MOCKS=false
 ```
 
-### 3. Set up the database
+### 3. Configure backend environment variables
 
-In your Supabase dashboard, open the SQL editor and run:
+Create `server/.env`:
+
+```env
+DATABASE_URL=postgresql://user:pass@ep-xxx.neon.tech/neondb?sslmode=require
+CLAUDE_API_KEY=sk-ant-your-key
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+EBAY_APP_ID=your-ebay-app-id
+EBAY_CERT_ID=your-ebay-cert-id
+EBAY_SANDBOX=false
+TCGAPI_KEY=your-tcgapi-key
+```
+
+### 4. Set up the database
+
+In your Neon SQL editor, run:
 
 ```
 supabase/migrations/001_initial_schema.sql
 ```
 
-Then create the card image storage bucket:
+## Running Locally
 
-```sql
-INSERT INTO storage.buckets (id, name, public) VALUES ('cards', 'cards', true);
+**Terminal 1 — Backend:**
+```bash
+cd server
+node index.js
 ```
 
-## Running the App
+**Terminal 2 — Frontend:**
+```bash
+npm start
+```
+
+Then press `w` for web or scan the QR code with Expo Go.
+
+## Running Commands
 
 | Command | Description |
 |---|---|
-| `npm start` | Start Expo dev server (scan QR with Expo Go) |
-| `npm run android` | Open on Android emulator / device |
-| `npm run ios` | Open on iOS simulator / device |
+| `npm start` | Start Expo dev server |
+| `npm run android` | Open on Android |
+| `npm run ios` | Open on iOS |
 | `npm run web` | Open in browser |
 | `npm test` | Run Jest test suite |
+
+## Deployment (Render)
+
+**Backend (Web Service):**
+- Root Directory: `server`
+- Build Command: `npm install`
+- Start Command: `node index.js`
+- Add all `server/.env` variables to Render environment
+
+**Frontend (Static Site):**
+- Build Command: `npx expo export --platform web`
+- Publish Directory: `dist`
+- Add `EXPO_PUBLIC_API_URL` pointing to your backend Render URL
 
 ## Project Structure
 
 ```
 cards/
 ├── app/                    # Expo Router entry points
-│   ├── _layout.tsx         # Root layout (providers)
-│   └── index.tsx           # App entry → React Navigation
+├── server/                 # Express.js backend API
+│   ├── index.js            # API routes (cards, pricing proxies, AI proxy)
+│   └── package.json
 ├── src/
-│   ├── core/
-│   │   ├── App.tsx
-│   │   ├── navigation/     # Stack & tab navigators
-│   │   └── providers/      # Auth, React Query
+│   ├── core/               # Navigation, providers
 │   ├── screens/            # Feature screens
-│   │   ├── auth/           # Lock screen (biometrics)
-│   │   ├── collection/     # Grid, detail, edit
-│   │   ├── dashboard/      # Value charts, sell decisions
-│   │   ├── onboarding/
-│   │   ├── scan/           # Camera + confirmation
-│   │   ├── search/
-│   │   └── settings/       # Batch reprice
 │   ├── components/         # Shared UI components
-│   ├── services/           # API clients, offline queue
-│   ├── stores/             # Zustand stores
+│   ├── services/
+│   │   ├── ai/             # Claude identification, grading, recommendations
+│   │   ├── pricing/        # eBay, TCG API, Scryfall, YGOPRODeck
+│   │   ├── camera/         # Image capture, compression, Cloudinary upload
+│   │   └── supabase/       # Card, price check, snapshot repositories
+│   ├── stores/             # Zustand state
 │   └── types/              # TypeScript types
 ├── supabase/
-│   └── migrations/         # SQL schema
+│   └── migrations/         # Neon SQL schema
 ├── .env.example
-└── app.json                # Expo config
+└── app.json
 ```
 
 ## Database Schema
 
-Three main tables in Supabase:
+Three main tables in Neon:
 
 - **`cards`** — Master card records with AI identification, condition, pricing, and recommendation fields
 - **`price_checks`** — Audit trail of every pricing lookup per card
@@ -124,6 +173,7 @@ Three main tables in Supabase:
 
 ## Notes
 
-- Set `EXPO_PUBLIC_USE_MOCKS=true` in `.env` to develop without real API keys — mock data is returned for all external calls
-- Camera permissions are required on device for scanning; the web build falls back to image picker
-- The app targets portrait orientation only
+- Set `EXPO_PUBLIC_USE_MOCKS=true` to develop without real API keys
+- Camera capture button on web opens file picker automatically
+- All external API calls (Claude, eBay, TCG API) go through the backend server to avoid CORS issues and keep keys secure
+- eBay requires Production API key with sold/completed listings scope

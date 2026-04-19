@@ -2,6 +2,13 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
+const cloudinary = require('cloudinary').v2;
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const app = express();
 app.use(cors());
@@ -33,6 +40,40 @@ const pool = new Pool({
 
 // Health check
 app.get('/health', (_, res) => res.json({ ok: true }));
+
+// ─── Claude AI Proxy ──────────────────────────────────────────────────────────
+
+app.post('/api/ai/claude', async (req, res) => {
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.CLAUDE_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(req.body),
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Image Upload ─────────────────────────────────────────────────────────────
+
+app.post('/api/upload', async (req, res) => {
+  try {
+    const { data } = req.body;
+    const result = await cloudinary.uploader.upload(data, { folder: 'cardvault' });
+    res.json({ url: result.secure_url });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ─── Cards ────────────────────────────────────────────────────────────────────
 

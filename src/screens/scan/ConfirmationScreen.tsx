@@ -30,6 +30,7 @@ import { RecommendationBadge } from '../../components/cards/RecommendationBadge'
 import { LoadingOverlay } from '../../components/common/LoadingOverlay';
 import { useScanStore } from '../../stores/useScanStore';
 import { formatUsd } from '../../utils/formatters';
+import { uploadCardImage } from '../../services/camera/uploadService';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -290,7 +291,10 @@ export function ConfirmationScreen({ route, navigation }: Props) {
   // -----------------------------------------------------------------------
 
   const handleConfirmAndPrice = useCallback(async () => {
-    if (!identification) return;
+    if (!identification) {
+      Alert.alert('AI Processing Failed', 'Card could not be identified. Please retake the photo.');
+      return;
+    }
 
     setPhase('pricing');
     setStep('pricing');
@@ -350,6 +354,11 @@ export function ConfirmationScreen({ route, navigation }: Props) {
     setStep('saving');
 
     try {
+      const [uploadedFront, uploadedBack] = await Promise.all([
+        uploadCardImage(frontUri),
+        backUri ? uploadCardImage(backUri) : Promise.resolve(null),
+      ]);
+
       const cardData: Partial<Card> = {
         collection_type: identification.card_type,
         card_name: cardName,
@@ -359,8 +368,8 @@ export function ConfirmationScreen({ route, navigation }: Props) {
         edition: edition || null,
         rarity: rarity || null,
         language: identification.language ?? 'English',
-        photo_url_front: frontUri,
-        photo_url_back: backUri ?? null,
+        photo_url_front: uploadedFront,
+        photo_url_back: uploadedBack,
         ai_identification_raw:
           identification as unknown as Record<string, unknown>,
         ai_confidence_identification: identification.identification_confidence,

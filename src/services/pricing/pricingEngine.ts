@@ -184,7 +184,11 @@ export async function priceCard(card: CardInput): Promise<PricingResult> {
     ]).then((r) => r[0]),
   ];
 
-  const [ebayResult, tcgResult, cmResult] = await Promise.all(promises);
+  const [ebayResult, tcgResult, cmResult] = await Promise.all(promises).catch(() => [
+    { status: 'rejected' as const, reason: 'fetch failed' },
+    { status: 'rejected' as const, reason: 'fetch failed' },
+    { status: 'rejected' as const, reason: 'fetch failed' },
+  ]);
 
   // 4. Extract successful results
   const ebay: PricingSourceResult | null =

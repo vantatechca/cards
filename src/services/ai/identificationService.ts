@@ -280,13 +280,9 @@ async function identifyCardReal(
     });
   }
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetch(`${API_CONFIG.apiBaseUrl}/api/ai/claude`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': API_CONFIG.claude.apiKey,
-      'anthropic-version': '2023-06-01',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: API_CONFIG.claude.model,
       max_tokens: 1024,

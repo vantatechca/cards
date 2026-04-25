@@ -7,9 +7,12 @@ import { StatusBar, View, ActivityIndicator, Text, StyleSheet } from 'react-nati
 import { NavigationContainer, NavigationIndependentTree } from '@react-navigation/native';
 import { RootNavigator } from '../src/core/navigation/RootNavigator';
 import { useAppStore } from '../src/stores/useAppStore';
+import { useAuthStore } from '../src/stores/useAuthStore';
 
 export default function Index() {
-  const hasHydrated = useAppStore.persist?.hasHydrated?.() ?? true;
+  const hasHydrated =
+    (useAppStore.persist?.hasHydrated?.() ?? true) &&
+    (useAuthStore.persist?.hasHydrated?.() ?? true);
 
   if (!hasHydrated) {
     return (

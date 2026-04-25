@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const cloudinary = require('cloudinary').v2;
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -13,6 +15,8 @@ cloudinary.config({
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+const JWT_SECRET = process.env.JWT_SECRET || 'cardvault-jwt-secret';
 
 const JSONB_FIELDS = new Set([
   'ai_identification_raw', 'value_source_breakdown', 'proof_links',
@@ -38,8 +42,73 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Authentication required' });
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: 'Invalid or expired token' });
+    req.user = user;
+    next();
+  });
+}
+
 // Health check
 app.get('/health', (_, res) => res.json({ ok: true }));
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+    if (existing.rows[0]) return res.status(409).json({ error: 'Email already registered' });
+
+    const password_hash = await bcrypt.hash(password, 10);
+    const { rows } = await pool.query(
+      'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name',
+      [email.toLowerCase(), password_hash, name ?? null],
+    );
+    const user = rows[0];
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
+    res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+
+    const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
+    const user = rows[0];
+    if (!user) return res.status(401).json({ error: 'Invalid email or password' });
+
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
+
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id, email, name FROM users WHERE id = $1', [req.user.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'User not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ─── Claude AI Proxy ──────────────────────────────────────────────────────────
 
@@ -76,7 +145,6 @@ app.get('/api/ebay/search', async (req, res) => {
     const isSandbox = process.env.EBAY_SANDBOX === 'true';
     const ebayBase = isSandbox ? 'https://api.sandbox.ebay.com' : 'https://api.ebay.com';
 
-    // Get OAuth token
     const tokenRes = await fetch(`${ebayBase}/identity/v1/oauth2/token`, {
       method: 'POST',
       headers: {
@@ -94,7 +162,6 @@ app.get('/api/ebay/search', async (req, res) => {
 
     const { access_token } = await tokenRes.json();
 
-    // Search eBay
     const params = new URLSearchParams(req.query);
     const searchRes = await fetch(
       `${ebayBase}/buy/browse/v1/item_summary/search?${params}`,
@@ -170,14 +237,18 @@ app.post('/api/upload', async (req, res) => {
   }
 });
 
-// ─── Cards ────────────────────────────────────────────────────────────────────
+// ─── Cards (protected) ────────────────────────────────────────────────────────
 
-app.get('/api/cards', async (req, res) => {
+app.get('/api/cards', authenticateToken, async (req, res) => {
   try {
     const { collection_type, sort_by = 'created_at', condition_simple, is_graded, rarity, min_value, max_value } = req.query;
     const conditions = [];
     const params = [];
     let i = 1;
+
+    // Always filter by the authenticated user
+    conditions.push(`user_id = $${i++}`);
+    params.push(req.user.id);
 
     if (collection_type)          { conditions.push(`collection_type = $${i++}`);        params.push(collection_type); }
     if (condition_simple)         { conditions.push(`condition_simple = $${i++}`);        params.push(condition_simple); }
@@ -186,7 +257,7 @@ app.get('/api/cards', async (req, res) => {
     if (min_value)                { conditions.push(`estimated_value_usd >= $${i++}`);    params.push(parseFloat(min_value)); }
     if (max_value)                { conditions.push(`estimated_value_usd <= $${i++}`);    params.push(parseFloat(max_value)); }
 
-    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const where = `WHERE ${conditions.join(' AND ')}`;
     const validSorts = ['card_name', 'estimated_value_usd', 'created_at', 'updated_at', 'year'];
     const col = validSorts.includes(sort_by) ? sort_by : 'created_at';
     const dir = col === 'card_name' ? 'ASC' : 'DESC';
@@ -202,14 +273,14 @@ app.get('/api/cards', async (req, res) => {
   }
 });
 
-app.get('/api/cards/search', async (req, res) => {
+app.get('/api/cards/search', authenticateToken, async (req, res) => {
   try {
     const { q } = req.query;
     const { rows } = await pool.query(
       `SELECT * FROM cards
-       WHERE card_name ILIKE $1 OR set_name ILIKE $1 OR notes ILIKE $1
+       WHERE (card_name ILIKE $1 OR set_name ILIKE $1 OR notes ILIKE $1) AND user_id = $2
        ORDER BY estimated_value_usd DESC NULLS LAST`,
-      [`%${q}%`],
+      [`%${q}%`, req.user.id],
     );
     res.json(rows);
   } catch (err) {
@@ -218,9 +289,12 @@ app.get('/api/cards/search', async (req, res) => {
   }
 });
 
-app.get('/api/cards/:id', async (req, res) => {
+app.get('/api/cards/:id', authenticateToken, async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM cards WHERE id = $1', [req.params.id]);
+    const { rows } = await pool.query(
+      'SELECT * FROM cards WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id],
+    );
     if (!rows[0]) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
   } catch (err) {
@@ -229,9 +303,9 @@ app.get('/api/cards/:id', async (req, res) => {
   }
 });
 
-app.post('/api/cards', async (req, res) => {
+app.post('/api/cards', authenticateToken, async (req, res) => {
   try {
-    const card = serializeValues(req.body);
+    const card = serializeValues({ ...req.body, user_id: req.user.id });
     const keys = Object.keys(card);
     const values = Object.values(card);
     const placeholders = keys.map((k, idx) =>
@@ -248,7 +322,7 @@ app.post('/api/cards', async (req, res) => {
   }
 });
 
-app.put('/api/cards/:id', async (req, res) => {
+app.put('/api/cards/:id', authenticateToken, async (req, res) => {
   try {
     const updates = serializeValues(req.body);
     const keys = Object.keys(updates);
@@ -257,8 +331,8 @@ app.put('/api/cards/:id', async (req, res) => {
       TEXT_ARRAY_FIELDS.has(k) ? `${k} = $${idx + 1}::text[]` : `${k} = $${idx + 1}`,
     ).join(', ');
     const { rows } = await pool.query(
-      `UPDATE cards SET ${setClause} WHERE id = $${keys.length + 1} RETURNING *`,
-      [...values, req.params.id],
+      `UPDATE cards SET ${setClause} WHERE id = $${keys.length + 1} AND user_id = $${keys.length + 2} RETURNING *`,
+      [...values, req.params.id, req.user.id],
     );
     if (!rows[0]) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
@@ -268,9 +342,9 @@ app.put('/api/cards/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/cards/:id', async (req, res) => {
+app.delete('/api/cards/:id', authenticateToken, async (req, res) => {
   try {
-    await pool.query('DELETE FROM cards WHERE id = $1', [req.params.id]);
+    await pool.query('DELETE FROM cards WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     res.status(204).send();
   } catch (err) {
     console.error(err);
@@ -278,9 +352,9 @@ app.delete('/api/cards/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/cards', async (req, res) => {
+app.delete('/api/cards', authenticateToken, async (req, res) => {
   try {
-    await pool.query('DELETE FROM cards');
+    await pool.query('DELETE FROM cards WHERE user_id = $1', [req.user.id]);
     res.status(204).send();
   } catch (err) {
     console.error(err);

@@ -45,6 +45,8 @@ export type RootTabParamList = {
 };
 
 export type RootStackParamList = {
+  Login: undefined;
+  Register: undefined;
   Lock: undefined;
   Onboarding: undefined;
   Main: NavigatorScreenParams<RootTabParamList>;

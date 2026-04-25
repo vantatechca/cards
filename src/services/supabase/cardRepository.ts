@@ -1,6 +1,7 @@
 import { API_CONFIG } from '../../config/api';
 import type { Card, CollectionType, CollectionSummary, Recommendation } from '../../types/card';
 import { MOCK_CARDS } from '../mockData';
+import { useAuthStore } from '../../stores/useAuthStore';
 
 export interface CardFilters {
   condition_simple?: string;
@@ -22,9 +23,14 @@ let mockCards = [...MOCK_CARDS];
 const base = () => API_CONFIG.apiBaseUrl;
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = useAuthStore.getState().token;
   const res = await fetch(`${base()}${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init?.headers ?? {}),
+    },
   });
   if (!res.ok) throw new Error(await res.text());
   if (res.status === 204) return undefined as T;

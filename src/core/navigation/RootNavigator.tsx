@@ -16,18 +16,14 @@ export function RootNavigator() {
   const hasCompletedOnboarding = useAppStore((s) => s.hasCompletedOnboarding);
   const token = useAuthStore((s) => s.token);
 
-  if (!token) {
-    return (
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Register" component={RegisterScreen} />
-      </Stack.Navigator>
-    );
-  }
-
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {isLocked ? (
+      {!token ? (
+        <>
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Register" component={RegisterScreen} />
+        </>
+      ) : isLocked ? (
         <Stack.Screen name="Lock" component={LockScreen} />
       ) : !hasCompletedOnboarding ? (
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />

@@ -12,13 +12,15 @@ import { CardThumbnail } from '../../components/cards/CardThumbnail';
 import { CollectionTabs } from '../../components/filters/CollectionTabs';
 import { SortPicker } from '../../components/filters/SortPicker';
 import { EmptyState } from '../../components/common/EmptyState';
-import { formatUsd, formatCad } from '../../utils/formatters';
+import { useCurrency } from '../../hooks/useCurrency';
+import { usdToCad, formatUsd, formatCad } from '../../utils/formatters';
 
 type Props = NativeStackScreenProps<CollectionStackParamList, 'CollectionGrid'>;
 
 function CollectionSummary({ cards }: { cards: Card[] }) {
+  const { currency, formatValue } = useCurrency();
   const totalUsd = cards.reduce((s, c) => s + (Number(c.estimated_value_usd) || 0), 0);
-  const totalCad = Math.round(totalUsd * 1.36 * 100) / 100;
+  const totalCad = cards.reduce((s, c) => s + (Number(c.estimated_value_cad) || usdToCad(Number(c.estimated_value_usd) || 0)), 0);
   const confidences = cards.map((c) => c.value_confidence_pct).filter((v): v is number => v != null);
   const avgConf = confidences.length > 0 ? Math.round(confidences.reduce((a, b) => a + b, 0) / confidences.length) : 0;
 
@@ -30,8 +32,8 @@ function CollectionSummary({ cards }: { cards: Card[] }) {
       </View>
       <View style={styles.summaryDivider} />
       <View style={styles.summaryItem}>
-        <Text style={styles.summaryValue}>{formatUsd(totalUsd)}</Text>
-        <Text style={styles.summaryLabel}>{formatCad(totalCad)}</Text>
+        <Text style={styles.summaryValue}>{formatValue(totalUsd, totalCad)}</Text>
+        <Text style={styles.summaryLabel}>{currency === 'USD' ? formatCad(totalCad) : formatUsd(totalUsd)}</Text>
       </View>
       <View style={styles.summaryDivider} />
       <View style={styles.summaryItem}>

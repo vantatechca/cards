@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Switch, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Switch, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Modal } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SettingsStackParamList } from '../../types/navigation';
 import { useAppStore } from '../../stores/useAppStore';
@@ -34,13 +34,7 @@ export function SettingsScreen({ navigation }: Props) {
   const deleteAllCards = useDeleteAllCards();
   const [exporting, setExporting] = useState(false);
   const { user, clearAuth } = useAuthStore();
-
-  const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: () => clearAuth() },
-    ]);
-  };
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleExport = async (format: 'csv' | 'json') => {
     setExporting(true);
@@ -77,10 +71,27 @@ export function SettingsScreen({ navigation }: Props) {
             <Text style={styles.rowDesc}>{user?.email}</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.actionRow} onPress={handleLogout}>
+        <TouchableOpacity style={styles.actionRow} onPress={() => setShowLogoutModal(true)}>
           <Text style={[styles.actionLabel, { color: '#dc2626' }]}>Sign Out</Text>
         </TouchableOpacity>
       </View>
+
+      <Modal transparent animationType="fade" visible={showLogoutModal} onRequestClose={() => setShowLogoutModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Sign Out</Text>
+            <Text style={styles.modalMessage}>Are you sure you want to sign out of your account?</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setShowLogoutModal(false)}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirm} onPress={() => { setShowLogoutModal(false); clearAuth(); }}>
+                <Text style={styles.modalConfirmText}>Sign Out</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Security */}
       <Text style={styles.sectionTitle}>Security</Text>
@@ -280,5 +291,62 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 13,
     color: '#9ca3af',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  modalBox: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 360,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  modalMessage: {
+    fontSize: 15,
+    color: '#6b7280',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalCancel: {
+    flex: 1,
+    height: 46,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#e5e7eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  modalConfirm: {
+    flex: 1,
+    height: 46,
+    borderRadius: 10,
+    backgroundColor: '#dc2626',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalConfirmText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
   },
 });

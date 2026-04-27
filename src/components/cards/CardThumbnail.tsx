@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Card } from '../../types/card';
-import { formatUsd } from '../../utils/formatters';
 import { ConfidenceBadge } from './ConfidenceBadge';
+import { useCurrency } from '../../hooks/useCurrency';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_WIDTH = (SCREEN_WIDTH - 32 - 16) / 3; // 16px side padding + 8px gaps
@@ -23,6 +23,7 @@ function isPriceStale(lastValued: string | null): boolean {
 
 export function CardThumbnail({ card, onPress, onLongPress, isSelected }: Props) {
   const stale = isPriceStale(card.last_valued_at);
+  const { formatValue } = useCurrency();
 
   return (
     <TouchableOpacity
@@ -51,7 +52,7 @@ export function CardThumbnail({ card, onPress, onLongPress, isSelected }: Props)
         </Text>
         <View style={styles.priceRow}>
           <Text style={[styles.price, stale && styles.priceStale]}>
-            {formatUsd(card.estimated_value_usd)}
+            {formatValue(card.estimated_value_usd, card.estimated_value_cad)}
           </Text>
           {card.value_confidence_pct != null && (
             <ConfidenceBadge confidence={card.value_confidence_pct} size="small" />

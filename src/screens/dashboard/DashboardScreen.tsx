@@ -4,7 +4,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { DashboardStackParamList } from '../../types/navigation';
 import { useCards } from '../../hooks/useCards';
 import { Card, CollectionSnapshot } from '../../types/card';
-import { formatUsd, formatCad } from '../../utils/formatters';
+import { formatUsd, formatCad, usdToCad } from '../../utils/formatters';
+import { useCurrency } from '../../hooks/useCurrency';
 import { ConfidenceBadge } from '../../components/cards/ConfidenceBadge';
 import { RecommendationBadge } from '../../components/cards/RecommendationBadge';
 import { ValueTrendChart } from '../../components/charts/ValueTrendChart';
@@ -22,7 +23,7 @@ function StatCard({ label, value, color = '#111827' }: { label: string; value: s
   );
 }
 
-function TopCardRow({ card, rank }: { card: Card; rank: number }) {
+function TopCardRow({ card, rank, formatValue }: { card: Card; rank: number; formatValue: (usd: number | null | undefined, cad?: number | null | undefined) => string }) {
   return (
     <View style={styles.topCardRow}>
       <Text style={styles.topRank}>#{rank}</Text>
@@ -39,7 +40,7 @@ function TopCardRow({ card, rank }: { card: Card; rank: number }) {
           {card.set_name} {card.year ? `(${card.year})` : ''}
         </Text>
       </View>
-      <Text style={styles.topCardValue}>{formatUsd(card.estimated_value_usd)}</Text>
+      <Text style={styles.topCardValue}>{formatValue(card.estimated_value_usd, card.estimated_value_cad)}</Text>
     </View>
   );
 }
@@ -47,6 +48,7 @@ function TopCardRow({ card, rank }: { card: Card; rank: number }) {
 export function DashboardScreen({ navigation }: Props) {
   const { data: allCards = [], refetch } = useCards();
   const [refreshing, setRefreshing] = useState(false);
+  const { currency, formatValue } = useCurrency();
 
   const [snapshots, setSnapshots] = useState<CollectionSnapshot[]>([]);
 
@@ -75,8 +77,9 @@ export function DashboardScreen({ navigation }: Props) {
   const yugioh = allCards.filter((c) => c.collection_type === 'yugioh');
 
   const sum = (arr: Card[]) => arr.reduce((s, c) => s + (c.estimated_value_usd ?? 0), 0);
+  const sumCad = (arr: Card[]) => arr.reduce((s, c) => s + (c.estimated_value_cad ?? usdToCad(c.estimated_value_usd ?? 0)), 0);
   const totalUsd = sum(allCards);
-  const totalCad = Math.round(totalUsd * 1.36 * 100) / 100;
+  const totalCad = Math.round(sumCad(allCards) * 100) / 100;
 
   const confidences = allCards.map((c) => c.value_confidence_pct).filter((v): v is number => v != null);
   const avgConfidence = confidences.length > 0 ? Math.round(confidences.reduce((a, b) => a + b, 0) / confidences.length) : 0;
@@ -100,8 +103,8 @@ export function DashboardScreen({ navigation }: Props) {
       {/* Total Value Hero */}
       <View style={styles.heroSection}>
         <Text style={styles.heroLabel}>Total Collection Value</Text>
-        <Text style={styles.heroValue}>{formatUsd(totalUsd)}</Text>
-        <Text style={styles.heroSub}>{formatCad(totalCad)}</Text>
+        <Text style={styles.heroValue}>{formatValue(totalUsd, totalCad)}</Text>
+        <Text style={styles.heroSub}>{currency === 'USD' ? formatCad(totalCad) : formatUsd(totalUsd)}</Text>
         <Text style={styles.heroCards}>{allCards.length} cards</Text>
       </View>
 
@@ -154,7 +157,7 @@ export function DashboardScreen({ navigation }: Props) {
           ].map((col) => (
             <View key={col.label} style={[styles.breakdownItem, { borderLeftColor: col.color }]}>
               <Text style={styles.breakdownLabel}>{col.label}</Text>
-              <Text style={styles.breakdownValue}>{formatUsd(sum(col.cards))}</Text>
+              <Text style={styles.breakdownValue}>{formatValue(sum(col.cards), sumCad(col.cards))}</Text>
               <Text style={styles.breakdownSub}>{col.cards.length} cards</Text>
             </View>
           ))}
@@ -184,7 +187,7 @@ export function DashboardScreen({ navigation }: Props) {
         </View>
         {sellNowValue > 0 && (
           <Text style={styles.sellPotential}>
-            Potential revenue from selling: {formatUsd(sellNowValue)}
+            Potential revenue from selling: {formatValue(sellNowValue)}
           </Text>
         )}
       </View>
@@ -200,7 +203,7 @@ export function DashboardScreen({ navigation }: Props) {
         {topCards.length === 0 ? (
           <Text style={styles.placeholder}>Scan cards to see your most valuable items here.</Text>
         ) : (
-          topCards.map((card, i) => <TopCardRow key={card.id} card={card} rank={i + 1} />)
+          topCards.map((card, i) => <TopCardRow key={card.id} card={card} rank={i + 1} formatValue={formatValue} />)
         )}
       </View>
 

@@ -1,4 +1,5 @@
 import { Card } from '../types/card';
+import { Platform } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import { File, Paths, Directory } from 'expo-file-system';
 
@@ -65,14 +66,27 @@ export function cardsToJSON(cards: Card[]): string {
 }
 
 export async function exportAndShare(content: string, filename: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    const mimeType = filename.endsWith('.csv') ? 'text/csv;charset=utf-8;' : 'application/json';
+    const blob = new Blob(['﻿' + content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+    return;
+  }
+
   const exportDir = new Directory(Paths.cache, 'exports');
   if (!exportDir.exists) {
     exportDir.create({ intermediates: true });
   }
   const file = new File(exportDir, filename);
-  if (file.exists) {
-    file.delete();
-  }
+  if (file.exists) file.delete();
   file.create();
   file.write(content);
 

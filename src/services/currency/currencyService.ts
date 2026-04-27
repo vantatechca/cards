@@ -1,29 +1,30 @@
 import { API_CONFIG } from '../../config/api';
 
-// ---------------------------------------------------------------------------
-// Mock
-// ---------------------------------------------------------------------------
+const FALLBACK_RATE = 1.36;
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-const MOCK_USD_TO_CAD = 1.36;
-
-// ---------------------------------------------------------------------------
-// Real (placeholder for a live API such as exchangerate-api.com)
-// ---------------------------------------------------------------------------
+let cachedRate: number | null = null;
+let cacheTime = 0;
 
 async function fetchLiveRate(): Promise<number> {
-  // TODO: Replace with a real currency API call when ready.
-  // Example: https://v6.exchangerate-api.com/v6/YOUR_KEY/pair/USD/CAD
-  return MOCK_USD_TO_CAD;
+  try {
+    const res = await fetch('https://open.er-api.com/v6/latest/USD');
+    if (!res.ok) return FALLBACK_RATE;
+    const data = await res.json();
+    return data?.rates?.CAD ?? FALLBACK_RATE;
+  } catch {
+    return FALLBACK_RATE;
+  }
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 export async function getUsdToCadRate(): Promise<number> {
-  if (API_CONFIG.useMocks) {
-    return MOCK_USD_TO_CAD;
-  }
+  if (API_CONFIG.useMocks) return FALLBACK_RATE;
 
-  return fetchLiveRate();
+  const now = Date.now();
+  if (cachedRate !== null && now - cacheTime < CACHE_TTL_MS) return cachedRate;
+
+  const rate = await fetchLiveRate();
+  cachedRate = rate;
+  cacheTime = now;
+  return rate;
 }

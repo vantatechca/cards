@@ -3,6 +3,7 @@ import { View, Text, ScrollView, Switch, TouchableOpacity, StyleSheet, Alert, Ac
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SettingsStackParamList } from '../../types/navigation';
 import { useAppStore } from '../../stores/useAppStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { useCards, useDeleteAllCards } from '../../hooks/useCards';
 import { cardsToCSV, cardsToJSON, exportAndShare } from '../../services/exportService';
 
@@ -32,6 +33,14 @@ export function SettingsScreen({ navigation }: Props) {
   const { data: cards = [] } = useCards();
   const deleteAllCards = useDeleteAllCards();
   const [exporting, setExporting] = useState(false);
+  const { user, clearAuth } = useAuthStore();
+
+  const handleLogout = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign Out', style: 'destructive', onPress: () => clearAuth() },
+    ]);
+  };
 
   const handleExport = async (format: 'csv' | 'json') => {
     setExporting(true);
@@ -59,6 +68,20 @@ export function SettingsScreen({ navigation }: Props) {
 
   return (
     <ScrollView style={styles.container}>
+      {/* Account */}
+      <Text style={styles.sectionTitle}>Account</Text>
+      <View style={styles.section}>
+        <View style={styles.row}>
+          <View style={styles.rowInfo}>
+            <Text style={styles.rowLabel}>Signed in as</Text>
+            <Text style={styles.rowDesc}>{user?.email}</Text>
+          </View>
+        </View>
+        <TouchableOpacity style={styles.actionRow} onPress={handleLogout}>
+          <Text style={[styles.actionLabel, { color: '#dc2626' }]}>Sign Out</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Security */}
       <Text style={styles.sectionTitle}>Security</Text>
       <View style={styles.section}>
